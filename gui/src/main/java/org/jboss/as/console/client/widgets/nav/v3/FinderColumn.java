@@ -35,7 +35,9 @@ import com.google.gwt.view.client.ProvidesKey;
 import com.google.gwt.view.client.SelectionChangeEvent;
 import com.google.gwt.view.client.SingleSelectionModel;
 import com.gwtplatform.mvp.client.proxy.PlaceManager;
+
 import org.jboss.as.console.client.Console;
+import org.jboss.as.console.client.domain.model.ServerGroupRecord;
 import org.jboss.as.console.client.domain.model.SimpleCallback;
 import org.jboss.ballroom.client.rbac.SecurityContext;
 import org.jboss.ballroom.client.rbac.SecurityContextAware;
@@ -327,7 +329,8 @@ public class FinderColumn<T> implements SecurityContextAware {
     }
 
     private void filterNonPrivilegeOperations(SecurityContext securityContext, List<MenuDelegate> target, MenuDelegate[] source) {
-
+    	Boolean skipRemoveMenuItem = isSkipRemoveMenuItem();
+    	
         target.clear();
         for (MenuDelegate menuItem : source) {
 
@@ -336,8 +339,9 @@ public class FinderColumn<T> implements SecurityContextAware {
                     securityContext.getWritePriviledge().isGranted();
 
             // Role.Operation will be filtered depending on the permission
+            //bug fix, see  https://issues.jboss.org/browse/JBEAP-1477       
             if(MenuDelegate.Role.Operation == menuItem.getRole()
-                    && writePrivilege)
+                    && writePrivilege && !(skipRemoveMenuItem && menuItem.getTitle().equals("Remove")))
             {
                 target.add(menuItem);
             }
@@ -349,6 +353,27 @@ public class FinderColumn<T> implements SecurityContextAware {
             }
 
         }
+    }
+    
+    /**if main-server-group and Domain mode and user is admin,
+     * we chould remote Remote ComboBox
+     * @link <a href="https://issues.jboss.org/browse/JBEAP-1477">JBEAP-1477</a>
+     * @return Boolean
+     */
+    private Boolean isSkipRemoveMenuItem(){
+        Boolean isStandalone = Console.getBootstrapContext().isStandalone();
+        Boolean isAdmin = Console.getBootstrapContext().isAdmin();
+        
+    	if (!isStandalone && isAdmin && selectionModel.getSelectedObject() != null
+				&& selectionModel.getSelectedObject() instanceof ServerGroupRecord) {
+			String name = ((ServerGroupRecord) selectionModel.getSelectedObject()).getName();
+			if (name != null) {
+				if (name.equals("main-server-group")) {
+					return true;
+				}
+			}
+		}
+    	return false;
     }
 
     public FinderColumn<T> setShowSize(boolean b) {
